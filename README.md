@@ -76,7 +76,8 @@ Production/release Android builds require HTTPS.
 
 The repository includes a manually triggered GitHub Actions workflow at
 `.github/workflows/build-android-apk.yml`. It builds a debug APK on GitHub's
-runner and uploads it as a downloadable artifact:
+runner, packages the JavaScript bundle so Metro is not required on the phone,
+and uploads it as a downloadable artifact:
 
 1. Start MongoDB and the backend on your computer. Find its private IPv4 address
    with `ipconfig` (the address in the active Wi-Fi adapter), and ensure the
