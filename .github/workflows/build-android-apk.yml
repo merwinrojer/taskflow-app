@@ -1,0 +1,75 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: HTTPS API URL, or private-LAN HTTP API URL for a same-Wi-Fi phone demo (ending in /api)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build installable APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK components
+        run: sdkmanager "platform-tools" "platforms;android-37" "build-tools;37.0.0" "ndk;27.1.12297006"
+
+      - name: Configure the phone-accessible API URL
+        working-directory: mobile
+        env:
+          TASKFLOW_API_BASE_URL: ${{ inputs.api_base_url }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const value = process.env.TASKFLOW_API_BASE_URL;
+          const url = new URL(value);
+          const path = url.pathname.replace(/\/+$/, '');
+          const isPrivateLanIp = /^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/.test(url.hostname);
+          if (!path.endsWith('/api') || url.username || url.password || url.search || url.hash) {
+            throw new Error('Enter an API URL ending in /api without credentials or query parameters');
+          }
+          if (url.protocol !== 'https:' && !(url.protocol === 'http:' && isPrivateLanIp)) {
+            throw new Error('Use HTTPS, or a private-LAN IPv4 HTTP URL for a same-Wi-Fi phone demo');
+          }
+          fs.writeFileSync('.env', `API_BASE_URL=${value.replace(/\/+$/, '')}\n`);
+          NODE
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Build debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskflow-android-debug
+          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7

@@ -5,8 +5,8 @@ export const taskIdValidator = [
   param('id').isMongoId().withMessage('Invalid task identifier'),
 ];
 
-const taskFields = () => [
-  body('title')
+const taskFields = (partial = false) => [
+  (partial ? body('title').optional() : body('title'))
     .isString()
     .trim()
     .notEmpty()
@@ -53,7 +53,7 @@ const onlyTaskFields = body().custom((value: Record<string, unknown>) => {
 
 export const createTaskValidator = [...taskFields(), onlyTaskFields];
 export const updateTaskValidator = [
-  ...taskFields().map((validator) => validator.optional()),
+  ...taskFields(true),
   onlyTaskFields,
   body().custom((value: Record<string, unknown>) => {
     if (!value || typeof value !== 'object' || Object.keys(value).length === 0) {
